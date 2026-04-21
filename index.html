@@ -1,1 +1,145 @@
-Boş index sayfası
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Directus Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 16px;
+      line-height: 1.5;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .muted {
+      color: #666;
+      font-size: 14px;
+    }
+    .error {
+      color: #b00020;
+      white-space: pre-wrap;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #f7f7f7;
+      padding: 12px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Directus Test</h1>
+  <p class="muted">test.hellos.one → cms.hellos.one veri çekme testi</p>
+
+  <div id="app">Yükleniyor...</div>
+
+  <script>
+    const DIRECTUS_URL = "https://cms.hellos.one";
+    const DIRECTUS_TOKEN = "Rfc3v-RpZQ6RhEN8qe-2nC9L9rzJIg4F";
+    const SITE_UUID = "23ff55e7-dd33-403e-a70d-75d4bf1a5b4e";
+
+    async function directus(endpoint) {
+      const res = await fetch(`${DIRECTUS_URL}${endpoint}`, {
+        headers: {
+          "Authorization": `Bearer ${DIRECTUS_TOKEN}`
+        }
+      });
+
+      const text = await res.text();
+
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch (e) {
+        throw new Error("JSON parse hatası:\n" + text);
+      }
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}\n` + JSON.stringify(json, null, 2));
+      }
+
+      return json.data;
+    }
+
+    async function load() {
+      const app = document.getElementById("app");
+
+      try {
+        const site = await directus(
+          `/items/sites/${SITE_UUID}?fields=id,name,domain,slug,status`
+        );
+
+        const settings = await directus(
+          `/items/site_settings?fields=site_title,site_description,favicon,og_image,google_analytics_id,custom_head_scripts,custom_body_scripts&filter[site][_eq]=${SITE_UUID}&limit=1`
+        );
+
+        const posts = await directus(
+          `/items/posts?fields=id,title,slug,excerpt,cover_image,published_at,status&filter[site][_eq]=${SITE_UUID}&filter[status][_eq]=published&sort=-published_at&limit=10`
+        );
+
+        const siteSettings = settings[0] || null;
+
+        let html = "";
+
+        html += `
+          <div class="card">
+            <h2>Site</h2>
+            <pre>${escapeHtml(JSON.stringify(site, null, 2))}</pre>
+          </div>
+        `;
+
+        html += `
+          <div class="card">
+            <h2>Site Settings</h2>
+            <pre>${escapeHtml(JSON.stringify(siteSettings, null, 2))}</pre>
+          </div>
+        `;
+
+        html += `
+          <div class="card">
+            <h2>Published Posts (${posts.length})</h2>
+            ${
+              posts.length === 0
+                ? "<p>Kayıt yok.</p>"
+                : posts.map(post => `
+                    <article style="margin-bottom:20px;">
+                      <h3>${escapeHtml(post.title || "(Başlıksız)")}</h3>
+                      <div class="muted">
+                        slug: ${escapeHtml(post.slug || "-")} |
+                        status: ${escapeHtml(post.status || "-")} |
+                        published_at: ${escapeHtml(post.published_at || "-")}
+                      </div>
+                      <p>${escapeHtml(post.excerpt || "")}</p>
+                    </article>
+                  `).join("")
+            }
+          </div>
+        `;
+
+        app.innerHTML = html;
+      } catch (err) {
+        app.innerHTML = `<div class="error"><strong>Hata:</strong>\n${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    load();
+  </script>
+</body>
+</html>
